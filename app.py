@@ -5,6 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 from sklearn.base import BaseEstimator, TransformerMixin
+import joblib
+
+
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Bank Marketing Prediction App", layout="wide")
@@ -27,8 +30,8 @@ class CustomFeaturesAdder(BaseEstimator, TransformerMixin):
 
 # --- LOAD PIPELINE ---
 try:
-    with open('full_pipeline.pkl', 'rb') as f:
-        model_pipeline = pickle.load(f)
+        model_pipeline = joblib.load("model_pipeline.joblib")
+
 except Exception as e:
     st.error("Model pipeline could not be loaded.")
     st.exception(e)
