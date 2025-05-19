@@ -1,243 +1,121 @@
+# --- IMPORTS ---
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
 import matplotlib.pyplot as plt
-import seaborn as sns
+import pickle
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.preprocessing import LabelEncoder
+import joblib
 
+
+
+# --- PAGE CONFIGURATION ---
+st.set_page_config(page_title="Bank Marketing Prediction App", layout="wide")
+st.title("Bank Term Deposit Subscription Prediction")
+st.markdown("""
+This app predicts whether a client will subscribe to a bank term deposit.
+Fill out the form below and click **Predict**.
+""")
+
+# --- CUSTOM TRANSFORMER (Must match training pipeline) ---
 class CustomFeaturesAdder(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         return self
-    
-    def transform(self, X, y=None):
-        X_new = X.copy()
-        X_new['previous_contact'] = (X_new['pdays'] != 999).astype(int)
-        X_new.loc[X_new["previous_contact"] == 0, "pdays"] = -1
-        X_new["unemployed"] = X_new["job"].isin(["student", "retired", "unemployed"]).astype(int)
-        return X_new
 
-class CustomLabelEncoder(BaseEstimator, TransformerMixin):
-    def __init__(self, categorical_columns):
-        self.categorical_columns = categorical_columns
-        self.encoders = None
-    
-    def fit(self, X, y=None):
-        self.encoders = {
-            col: LabelEncoder().fit(X[col].astype(str))
-            for col in self.categorical_columns if col in X.columns
-        }
-        return self
-    
-    def transform(self, X, y=None):
-        X_new = X.copy()
-        for col, le in self.encoders.items():
-            if col in X.columns:
-                X_new[col] = X_new[col].astype(str)
-                X_new[col] = X_new[col].map(lambda s: 'unknown' if s not in le.classes_ else s)
-                try:
-                    if 'unknown' not in le.classes_:
-                        le.classes_ = np.append(le.classes_, 'unknown')
-                    X_new[col] = le.transform(X_new[col])
-                except:
-                    X_new[col] = 0
-        return X_new
+    def transform(self, X):
+        X = X.copy()
+        X['previous_contact'] = (X['pdays'] != 999).astype(int)
+        X['unemployed'] = X['job'].isin(['student', 'retired', 'unemployed']).astype(int)
+        return X
 
-# Gerekli değişken tanımı
-categorical_columns = ['job', 'marital', 'education', 'default', 'housing', 'loan', 'contact', 'month',
-                      'day_of_week', 'poutcome']
+# --- LOAD PIPELINE ---
+try:
+        model_pipeline = joblib.load("model_pipeline.joblib")
 
-numerical_columns = ['age', 'duration', 'campaign', 'pdays', 'previous', 'emp.var.rate',
-                     'cons.price.idx', 'cons.conf.idx', 'euribor3m', 'nr.employed']
-# Define feature engineering function - must be identical to the one used to create the pipeline
-def feature_engineering(X):
-    X_ = X.copy()
-    # Add the engineered features we created earlier
-    X_['total_contacts'] = X_['campaign'] + X_['previous']
-    X_['euribor_emp_var'] = X_['euribor3m'] * X_['emp.var.rate']
-    return X_
+except Exception as e:
+    st.error("Model pipeline could not be loaded.")
+    st.exception(e)
+    st.stop()
 
-# Load the model pipeline
-with open('full_pipeline.pkl', 'rb') as f:
-    model_pipeline = pickle.load(f)
+# --- CENTERED FORM LAYOUT ---
+left, center, right = st.columns([1, 2, 1])
+with center:
+    st.header("Client Information")
 
-# Set page configuration
-st.set_page_config(page_title="Bank Marketing Prediction App", layout="wide")
+    # === INPUT FIELDS ===
+    age = st.slider("Age", 18, 100, 30)
+    job = st.selectbox("Job", ['admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management',
+                               'retired', 'self-employed', 'services', 'student', 'technician', 'unemployed'])
+    marital = st.selectbox("Marital Status", ['single', 'married', 'divorced'])
+    education = st.selectbox("Education", ['basic.4y', 'basic.6y', 'basic.9y', 'high.school', 'illiterate',
+                                           'professional.course', 'university.degree'])
+    default = st.selectbox("Has Credit in Default?", ['no', 'yes'])
+    housing = st.selectbox("Has Housing Loan?", ['no', 'yes'])
+    loan = st.selectbox("Has Personal Loan?", ['no', 'yes'])
+    contact = st.selectbox("Contact Communication Type", ['cellular', 'telephone'])
+    month = st.selectbox("Month of Last Contact", ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                                                   'jul', 'aug', 'sep', 'oct', 'nov', 'dec'])
+    day_of_week = st.selectbox("Day of Week of Last Contact", ['mon', 'tue', 'wed', 'thu', 'fri'])
+    duration = st.slider("Duration of Last Contact (seconds)", 0, 5000, 500)
+    campaign = st.slider("Number of Contacts During this Campaign", 1, 50, 1)
+    pdays = st.slider("Days Since Last Contact (999 = never contacted)", 0, 999, 999)
+    previous = st.slider("Number of Contacts Before this Campaign", 0, 50, 0)
+    poutcome = st.selectbox("Outcome of Previous Campaign", ['failure', 'nonexistent', 'success'])
+    emp_var_rate = st.slider("Employment Variation Rate", -3.4, 1.4, 0.0)
+    cons_price_idx = st.slider("Consumer Price Index", 92.0, 95.0, 93.5)
+    cons_conf_idx = st.slider("Consumer Confidence Index", -50.0, -26.0, -40.0)
+    euribor3m = st.slider("Euribor 3 Month Rate", 0.6, 5.0, 3.0)
+    nr_employed = st.slider("Number of Employees (in thousands)", 4900, 5300, 5100)
 
-# Title
-st.title("Bank Term Deposit Subscription Prediction")
-st.markdown("""
-This app predicts whether a client will subscribe to a bank term deposit based on various features.
-Enter the client's details below and click on the 'Predict' button to get the prediction.
-""")
+    # === PREDICTION ===
+    if st.button("Predict"):
+        input_data = pd.DataFrame({
+            'age': [age], 'job': [job], 'marital': [marital], 'education': [education],
+            'default': [default], 'housing': [housing], 'loan': [loan], 'contact': [contact],
+            'month': [month], 'day_of_week': [day_of_week], 'duration': [duration],
+            'campaign': [campaign], 'pdays': [pdays], 'previous': [previous], 'poutcome': [poutcome],
+            'emp.var.rate': [emp_var_rate], 'cons.price.idx': [cons_price_idx],
+            'cons.conf.idx': [cons_conf_idx], 'euribor3m': [euribor3m], 'nr.employed': [nr_employed]
+        })
 
-# Create a sidebar for inputs
-st.sidebar.header("Client Information")
+        try:
+            prediction = model_pipeline.predict(input_data)
+            prediction_proba = model_pipeline.predict_proba(input_data)
+        except Exception as e:
+            st.error("Prediction failed.")
+            st.exception(e)
+            st.stop()
 
-# Define the input fields
-# Age
-age = st.sidebar.slider("Age", 18, 100, 30)
-
-# Job type
-job_options = ['admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management', 
-              'retired', 'self-employed', 'services', 'student', 'technician', 'unemployed']
-job = st.sidebar.selectbox("Job", job_options)
-
-# Marital status
-marital_options = ['single', 'married', 'divorced']
-marital = st.sidebar.selectbox("Marital Status", marital_options)
-
-# Education
-education_options = ['basic.4y', 'basic.6y', 'basic.9y', 'high.school', 'illiterate',
-                     'professional.course', 'university.degree']
-education = st.sidebar.selectbox("Education", education_options)
-
-# Default
-default = st.sidebar.selectbox("Has Credit in Default?", ['no', 'yes'])
-
-# Housing loan
-housing = st.sidebar.selectbox("Has Housing Loan?", ['no', 'yes'])
-
-# Personal loan
-loan = st.sidebar.selectbox("Has Personal Loan?", ['no', 'yes'])
-
-# Contact
-contact_options = ['cellular', 'telephone']
-contact = st.sidebar.selectbox("Contact Communication Type", contact_options)
-
-# Month
-month_options = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-month = st.sidebar.selectbox("Month of Last Contact", month_options)
-
-# Day of week
-day_options = ['mon', 'tue', 'wed', 'thu', 'fri']
-day_of_week = st.sidebar.selectbox("Day of Week of Last Contact", day_options)
-
-
-# Campaign
-campaign = st.sidebar.slider("Number of Contacts Performed During this Campaign", 1, 50, 1)
-
-# Pdays
-pdays = st.sidebar.slider("Days Since Client was Last Contacted (999 = never contacted)", 0, 999, 999)
-
-# Previous
-previous = st.sidebar.slider("Number of Contacts Before this Campaign", 0, 50, 0)
-
-# Poutcome
-poutcome_options = ['failure', 'nonexistent', 'success']
-poutcome = st.sidebar.selectbox("Outcome of Previous Marketing Campaign", poutcome_options)
-
-# Economic indicators (these could be preset or allow user input)
-emp_var_rate = st.sidebar.slider("Employment Variation Rate", -3.4, 1.4, 0.0)
-cons_price_idx = st.sidebar.slider("Consumer Price Index", 92.0, 95.0, 93.5)
-cons_conf_idx = st.sidebar.slider("Consumer Confidence Index", -50.0, -26.0, -40.0)
-euribor3m = st.sidebar.slider("Euribor 3 Month Rate", 0.6, 5.0, 3.0)
-nr_employed = st.sidebar.slider("Number of Employees (in thousands)", 4900, 5300, 5100)
-
-# Button to make prediction
-if st.sidebar.button("Predict"):
-    # Create a dataframe with the input values
-    input_data = pd.DataFrame({
-        'age': [age],
-        'job': [job],
-        'marital': [marital],
-        'education': [education],
-        'default': [default],
-        'housing': [housing],
-        'loan': [loan],
-        'contact': [contact],
-        'month': [month],
-        'day_of_week': [day_of_week],
-        'campaign': [campaign],
-        'pdays': [pdays],
-        'previous': [previous],
-        'poutcome': [poutcome],
-        'emp.var.rate': [emp_var_rate],
-        'cons.price.idx': [cons_price_idx],
-        'cons.conf.idx': [cons_conf_idx],
-        'euribor3m': [euribor3m],
-        'nr.employed': [nr_employed]
-    })
-   
-    # IMPORTANT: Add these lines to apply feature engineering manually
-    # Add CustomFeaturesAdder features
-    input_data['previous_contact'] = (input_data['pdays'] != 999).astype(int)
-    input_data.loc[input_data["previous_contact"] == 0, "pdays"] = -1
-    input_data["unemployed"] = input_data["job"].isin(["student", "retired", "unemployed"]).astype(int)
-    
-    # Now make prediction with prepared data
-    prediction = model_pipeline.predict(input_data)
-    prediction_proba = model_pipeline.predict_proba(input_data)
-    # Make prediction
-    prediction = model_pipeline.predict(input_data)
-    prediction_proba = model_pipeline.predict_proba(input_data)
-    
-    # Display result
-    st.subheader("Prediction Results")
-    
-    # Create two columns for layout
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("Client Profile:")
-        st.write(f"- **Age:** {age}")
-        st.write(f"- **Job:** {job}")
-        st.write(f"- **Education:** {education}")
-        st.write(f"- **Contact:** {contact}")
-        st.write(f"- **Previous Outcome:** {poutcome}")
-    
-    with col2:
+        st.subheader("Prediction Result")
         if prediction[0] == 1:
-            st.success("The client is likely to subscribe to the term deposit! 📈")
+            st.success("✅ The client is likely to subscribe to the term deposit!")
         else:
-            st.error("The client is unlikely to subscribe to the term deposit. 📉")
-            
-        # Display probability
-        st.write(f"Probability of subscription: {prediction_proba[0][1]:.2%}")
-        
-        # Create a gauge chart for probability visualization
+            st.error("❌ The client is unlikely to subscribe to the term deposit.")
+        st.markdown(f"**Subscription Probability:** `{prediction_proba[0][1]:.2%}`")
+
+        # === BAR CHART FOR PROBABILITY ===
         fig, ax = plt.subplots(figsize=(4, 0.5))
         ax.barh(0, prediction_proba[0][1], color='green')
-        ax.barh(0, 1-prediction_proba[0][1], left=prediction_proba[0][1], color='red')
+        ax.barh(0, 1 - prediction_proba[0][1], left=prediction_proba[0][1], color='red')
         ax.set_xlim(0, 1)
         ax.set_yticks([])
         ax.set_xticks([0, 0.25, 0.5, 0.75, 1])
         ax.set_xticklabels(['0%', '25%', '50%', '75%', '100%'])
         st.pyplot(fig)
-    
-    # Explanation section
-    st.subheader("Key Factors")
-    st.write("""
-    Some of the most important factors in predicting term deposit subscriptions include:
-    - **Previous outcome**: Past success is a good predictor of future success
-    - **Month**: Certain months show higher subscription rates
-    - **Age**: Different age groups have varying propensities to subscribe
-    - **Economic indicators**: Market conditions significantly impact decisions
-    """)
 
-else:
-    # Show sample data visualization when no prediction has been made yet
-    st.subheader("Bank Marketing Campaign Analysis")
-    st.write("""
-    Welcome to the Bank Term Deposit Prediction App! 
-    
-    This tool helps predict whether a client will subscribe to a term deposit based on various factors including
-    demographic information, contact details, and economic indicators.
-    
-    **How to use this tool:**
-    1. Enter client information in the sidebar on the left
-    2. Click the 'Predict' button to see the results
-    3. Review the prediction and probability of subscription
-    
-    This model was trained on bank marketing campaign data and achieves good performance in predicting client responses.
-    """)
+        # === FACTOR INSIGHTS ===
+        st.subheader("Key Factors")
+        st.write("""
+        - **Duration**: Longer calls = more interest  
+        - **Past outcome**: Previous success helps  
+        - **Month & economic indicators** matter  
+        """)
+    else:
+        st.subheader("Instructions")
+        st.write("Fill in the form and click Predict.")
 
-# Add information about the project
-st.sidebar.markdown("---")
-st.sidebar.subheader("About")
-st.sidebar.info(
-    "This app uses machine learning to predict if a client will subscribe to a term deposit based on various features. "
-    "It was created as part of the ADA 442 Statistical Learning course project."
-)
-st.sidebar.markdown("Created by: Abdullah Doğanay, Onur Uslu, Emirhan Yılmaz, Talha El Bah")
+# --- FOOTER ---
+st.markdown("---")
+st.subheader("About")
+st.info("This app was built for ADA 442 Statistical Learning course.")
+st.markdown("**Team Members:** Abdullah Doğanay, Onur Uslu, Emirhan Yılmaz, Talha El Bah")
