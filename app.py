@@ -13,12 +13,8 @@ Fill out the form below and click **Predict**.
 """)
 
 # --- SAFE MODEL LOADING ---
-try:
-    model_pipeline = joblib.load('full_pipeline.pkl')
-except Exception as e:
-    st.error("❌ Failed to load the model. Please ensure 'full_pipeline.pkl' is in the app directory and was saved using joblib.")
-    st.exception(e)
-    st.stop()
+with open('full_pipeline.pkl', 'rb') as f:
+    model_pipeline = pickle.load(f)
 
 # --- LAYOUT: CENTERED ---
 left, center, right = st.columns([1, 2, 1])
