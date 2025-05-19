@@ -30,8 +30,8 @@ class CustomFeaturesAdder(BaseEstimator, TransformerMixin):
 
 # --- LOAD PIPELINE ---
 try:
-        model_pipeline = pickle.load("full_pipeline.pkl")
-
+    with open('full_pipeline.pkl', 'rb') as f:
+        model_pipeline = pickle.load(f)
 except Exception as e:
     st.error("Model pipeline could not be loaded.")
     st.exception(e)
