@@ -87,7 +87,7 @@ with center:
             st.stop()
 
         st.subheader("Prediction Result")
-        if prediction_proba[0][1]:.2% >= 50:
+        if prediction_proba[0][1] >= 50:
             st.success("✅ The client is likely to subscribe to the term deposit!")
         else:
             st.error("❌ The client is unlikely to subscribe to the term deposit.")
