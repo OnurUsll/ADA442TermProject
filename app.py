@@ -86,12 +86,7 @@ with center:
             st.exception(e)
             st.stop()
 
-        st.subheader("Prediction Result")
-        if prediction[0] == 1:
-            st.success("✅ The client is likely to subscribe to the term deposit!")
-        else:
-            st.error("❌ The client is unlikely to subscribe to the term deposit.")
-        st.markdown(f"*Subscription Probability:* {prediction_proba[0][1]:.2%}")
+        
 
         # === BAR CHART FOR PROBABILITY ===
         fig, ax = plt.subplots(figsize=(4, 0.5))
