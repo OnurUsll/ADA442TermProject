@@ -87,6 +87,7 @@ with center:
             st.stop()
 
         
+        st.markdown(f"*Subscription Probability:* {prediction_proba[0][1]:.2%}")
 
         # === BAR CHART FOR PROBABILITY ===
         fig, ax = plt.subplots(figsize=(4, 0.5))
